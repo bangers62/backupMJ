@@ -12,12 +12,21 @@ use Sys::Hostname;
 
 
 
+my $all   = 0 ; 
+my $fast  = 0;
+
+GetOptions(
+  'all!'  => \$all,
+  'fast!' => \$fast,
+);
+
 my ( $source, $target, %skip );
 my $host = hostname();
 
 if ( $host eq 'roe' ) {
   $source = '/mnt/monkjack';
-  $target = '/mnt/usb';
+  $target = '/mnt/usb/data';
+  $fast   = 1; # too low spec
 }
 elsif ($host eq 'elk' or $host eq 'elk.local' ) {
   $source = '/Volumes/Public';
@@ -27,16 +36,10 @@ else {
   die "No config for host $host\n";
 }
 
+
+
 my $path   = '';
 
-my $all   = 0 ; 
-my $fast  = 0;
-
-GetOptions(
-  'all!'  => \$all,
-  'fast!' => \$fast,
-  to      => \$target,
-);
 
 if ( !$all ) {
   my $cwd = getcwd();
