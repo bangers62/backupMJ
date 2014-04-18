@@ -12,12 +12,21 @@ use Sys::Hostname;
 
 
 
+my $all   = 0 ; 
+my $fast  = 0;
+
+GetOptions(
+  'all!'  => \$all,
+  'fast!' => \$fast,
+);
+
 my ( $source, $target, %skip );
 my $host = hostname();
 
 if ( $host eq 'roe' ) {
   $source = '/mnt/monkjack';
-  $target = '/mnt/usb';
+  $target = '/mnt/usb/data';
+  $fast   = 1; # too low spec
 }
 elsif ($host eq 'elk' or $host eq 'elk.local' ) {
   $source = '/Volumes/Public';
@@ -27,16 +36,10 @@ else {
   die "No config for host $host\n";
 }
 
+
+
 my $path   = '';
 
-my $all   = 0 ; 
-my $fast  = 0;
-
-GetOptions(
-  'all!'  => \$all,
-  'fast!' => \$fast,
-  to      => \$target,
-);
 
 if ( !$all ) {
   my $cwd = getcwd();
@@ -136,12 +139,10 @@ sub cleanTree {
   say "Cleaning $dir{backup}: ".scalar(@files);
 
   for my $file (  sort @files ) {
+    next if $file eq '.' or $file eq '..';
+    
     my $fullname = $dir{backup} . "/" . $file;
-    if ( $file eq '.' or $file eq '..' ) {
-      #say "Skipping: $fullname";
-      next;
-    }
-    elsif ( -f $fullname ) { 
+    if ( -f $fullname ) { 
       cleanup( %dir, file => $file, );
     }
     elsif ( -d $fullname ) {    
@@ -152,6 +153,14 @@ sub cleanTree {
        die;
     }
   }
+  
+  # Remove empty directories
+  @files = getDir($dir{backup});
+  if ( scalar @files == 2 and $files[0] eq '.' and $files[1] eq '..' ) {
+    say "  Removing empty directory $dir{backup}";
+    rmdir $dir{backup} or say "   Unable to remove";
+  }
+  
 }
 
 #-----------------------------------------------------------------------------------------
@@ -230,17 +239,21 @@ sub filesMatch {
   
   my $match = 0;
   if ( $arg{fast} ) {
-    $match = 1 if -d $arg{to} and -f $to;
+    if ( -d $arg{to} and -f $to ) {
+      $match = 1;
+      my $source = getFileInfo( $arg{source} ) ;
+      my $dest   = getFileInfo( $to );
+      for my $field ( qw( size mtime ) ) {
+         next if $source->{$field} == $dest->{$field};
+         $match = 0;
+         last;
+      }
+    }
   }
   else {
     $match = 1 if -d $arg{to} and -f $to and !compare( $arg{source}, $to, );
   }
     
-  #my $source = getFileInfo( $arg{source} ) ;
-  #my $dest   = getFileInfo( $to );
-    
-  #return 0 unless $source->{size} == $dest->{size};
-  
   return $match;
 
 }
@@ -274,7 +287,7 @@ sub getDir {
 }
 #-----------------------------------------------------------------------------------------
 sub getSecondsAsTime {
-  my $time = shift;
+  my $time = shift;#
 
   my $hours   = int($time/3600);
   my $minutes = int(($time - $hours*3600)/60);
